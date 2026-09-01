@@ -1,12 +1,14 @@
 # Android-only build
 
-This copy contains only the Android application target. Desktop JVM, iOS, and their packaging configuration have been removed.
+This copy contains only the Android application target. Desktop JVM, iOS, and their packaging configuration have been removed. The bundled `composeApp/src/androidMain/assets/tefloader.dex` already contains `TefUiBridge`.
 
 ## GitHub Actions
 
 Open **Actions → Build Android APK → Run workflow**. The APK is uploaded as the `TEFManager-Android` artifact.
 
 The workflow builds without any signing secret. In that case Gradle uses the automatically generated Android debug keystore, so the previous `Failed to read key TEFManager from store` error is avoided.
+
+After installing the APK, install the separately built `TEFUI-plugin` package through TEFManager. Do not import the DEX ZIP through the plugin page; it is already included in this source copy.
 
 For a stable release signature, add these repository secrets from the original valid keystore:
 

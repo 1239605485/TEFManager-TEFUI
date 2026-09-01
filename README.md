@@ -4,6 +4,7 @@
 TEFManager 是基于 **Kotlin Multiplatform** + **Compose Multiplatform** 开发的 TEFKernel 官方图形化管理工具。它为 Plugin、Module、ModLoader、Mod 四种组件类型提供了完整的可视化管理和包格式规范。
 
 > 这是 Android-only 源码副本，桌面 JVM、iOS target 和对应打包配置已移除。GitHub Actions 编译说明请参阅 [ANDROID-BUILD.md](ANDROID-BUILD.md)。
+> 本副本的 `composeApp/src/androidMain/assets/tefloader.dex` 已预置 TEFUI Bridge，不需要在应用内导入 DEX 压缩包。
 
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple.svg?logo=kotlin)
