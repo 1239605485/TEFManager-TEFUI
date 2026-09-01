@@ -1,5 +1,4 @@
 import com.android.build.api.dsl.ApplicationExtension
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -7,7 +6,6 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -36,6 +34,20 @@ val buildConfig = BuildConfigGenerator.BuildConfig(
     inlineGameVersion = AppConfig.INLINE_GAME_VERSION,
     inlineGameVersionCode = AppConfig.INLINE_GAME_VERSION_CODE
 )
+
+// A release APK can use a real keystore when all four TEF_RELEASE_* properties
+// are supplied. Without them, use the automatically generated Android debug
+// keystore so a missing or malformed repository secret cannot break the build.
+val releaseKeystoreFile = providers.gradleProperty("TEF_RELEASE_KEYSTORE_FILE")
+    .orNull
+    ?.let(::file)
+val releaseStorePassword = providers.gradleProperty("TEF_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.gradleProperty("TEF_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.gradleProperty("TEF_RELEASE_KEY_PASSWORD").orNull
+val hasReleaseSigning = releaseKeystoreFile?.isFile == true &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
 
 val generateCode by tasks.registering {
     description = "Generated strings and build config code"
@@ -70,24 +82,8 @@ kotlin {
         }
     }
 
-    jvm {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_21)
-        }
-    }
-
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
-    }
-
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
-        }
     }
 
     sourceSets {
@@ -148,22 +144,6 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
-        jvmTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
-        jvmMain.dependencies {
-            implementation(libs.desktop.jvm.linux.x64)
-            implementation(libs.desktop.jvm.macos.x64)
-            implementation(libs.desktop.jvm.windows.x64)
-            implementation(libs.desktop.jvm.macos.arm64)
-
-            // implementation(compose.desktop.currentOs)
-            implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.ktor.client.cio)
-        }
-        iosMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-        }
     }
 }
 
@@ -186,24 +166,30 @@ androidApp.apply {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("providedRelease") {
+                storeFile = releaseKeystoreFile
+                keyAlias = releaseKeyAlias
+                storePassword = releaseStorePassword
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("providedRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 file("proguard-rules.pro")
             )
-        }
-    }
-
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("tefmanager.p12")
-            keyAlias = "TEFManager"
-            storePassword = "EternalFuture@2026"
-            keyPassword = "EternalFuture@2026"
         }
     }
 
@@ -255,50 +241,6 @@ androidApp.apply {
     }
 }
 
-
 dependencies {
     debugImplementation(libs.compose.uiTooling)
-}
-
-compose.desktop {
-    application {
-        mainClass = "eternal.future.tefmanager.MainKt"
-
-        buildTypes.release.proguard {
-            // 启用 ProGuard
-            isEnabled.set(true)
-            obfuscate.set(true)
-            optimize.set(true)
-            configurationFiles.from(project.file("proguard-rules-jvm.pro"))
-        }
-
-        nativeDistributions {
-            targetFormats(
-                TargetFormat.Dmg,    // macOS
-                TargetFormat.Msi,    // Windows
-                TargetFormat.AppImage // Linux AppImage
-            )
-
-            packageName = "TEFManager"
-            packageVersion = AppConfig.VERSION_NAME
-
-            // macOS 配置
-            macOS {
-                bundleID = "eternal.future.tefmanager"
-                iconFile.set(File("src/jvmMain/resources/icon.icns"))
-            }
-
-            // Windows 配置
-            windows {
-                iconFile.set(File("src/jvmMain/resources/icon.ico"))
-                menuGroup = "TEFManager"
-            }
-
-            // Linux 配置
-            linux {
-                iconFile.set(File("src/jvmMain/resources/icon.webp"))
-                menuGroup = "TEFManager"
-            }
-        }
-    }
 }
