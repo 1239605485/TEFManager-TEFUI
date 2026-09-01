@@ -3,11 +3,13 @@
 
 TEFManager 是基于 **Kotlin Multiplatform** + **Compose Multiplatform** 开发的 TEFKernel 官方图形化管理工具。它为 Plugin、Module、ModLoader、Mod 四种组件类型提供了完整的可视化管理和包格式规范。
 
+> 这是 Android-only 源码副本，桌面 JVM、iOS target 和对应打包配置已移除。GitHub Actions 编译说明请参阅 [ANDROID-BUILD.md](ANDROID-BUILD.md)。
+
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple.svg?logo=kotlin)
 ![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.11.1-blue.svg)
 ![AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-red.svg)
-![Platforms](https://img.shields.io/badge/Platform-Android%20%7C%20Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20iOS-green.svg)
+![Platforms](https://img.shields.io/badge/Platform-Android-green.svg)
 
 ## [![Telegram Channel](https://img.shields.io/badge/Official_Telegram_Channel-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/TEFModLoader)
 
@@ -26,7 +28,7 @@ TEFManager 是基于 **Kotlin Multiplatform** + **Compose Multiplatform** 开发
 TEFManager 是 TEFKernel 生态系统的**官方图形化管理前端**，它：
 
 1. **实现了完整的包类型系统**：为 Plugin、Module、ModLoader、Mod 定义了标准化的包格式
-2. **提供可视化界面**：跨平台 UI，支持 Android/Windows/Linux/macOS
+2. **提供可视化界面**：Android UI
 3. **封装了 TEFKernel 目录结构**：自动管理 `plugin/`、`module/`、`modloader/`、`mods/` 目录
 4. **支持依赖管理**：自动解析和安装内联依赖（inline dependencies）
 5. **填补安卓生态空白**：内置语言包、材质包、字体包模块，让安卓玩家也能享受完整的模组体验
