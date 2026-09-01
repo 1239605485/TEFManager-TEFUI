@@ -1,13 +1,13 @@
-name: Manual Build App
+name: Build Android APK
 
 on:
   workflow_dispatch:
     inputs:
       build_description:
-        description: 'Build Description (optional)'
+        description: "Build description (optional)"
         required: false
         type: string
-        default: 'Manual build'
+        default: "Android build"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,7 +18,7 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,8 +29,8 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: temurin
+          java-version: "21"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -41,169 +41,50 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Create keystore file
+      # Optional: configure these four secrets for a stable release signature.
+      # If they are absent, build.gradle.kts uses the generated debug keystore.
+      - name: Configure optional release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > composeApp/tefmanager.p12
-          echo "Keystore created"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > composeApp/release-keystore.p12
+            if keytool -list -keystore composeApp/release-keystore.p12 \
+              -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+              echo "TEF_RELEASE_SIGNING=true" >> "$GITHUB_ENV"
+            else
+              echo "::warning::The supplied keystore could not be opened; using the generated debug keystore."
+              rm -f composeApp/release-keystore.p12
+            fi
+          fi
 
       - name: Build Android Release APK
+        env:
+          TEF_RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          TEF_RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          TEF_RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew :composeApp:assembleRelease \
-            -Pandroid.enableR8.fullMode=true \
-            --no-daemon
+          if [ "${TEF_RELEASE_SIGNING:-false}" = "true" ]; then
+            ./gradlew :composeApp:assembleRelease \
+              -PTEF_RELEASE_KEYSTORE_FILE=release-keystore.p12 \
+              --no-daemon
+          else
+            ./gradlew :composeApp:assembleRelease \
+              --no-daemon
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TEFManager.apk
+          name: TEFManager-Android
           path: composeApp/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 90
 
-  build-desktop-windows:
-    name: Build Windows MSI
-    runs-on: windows-latest
-    timeout-minutes: 60
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: wrapper
-          cache-read-only: false
-
-      - name: Build Windows MSI
+      - name: Build summary
         run: |
-          ./gradlew :composeApp:packageReleaseMsi \
-            --no-daemon
-        shell: bash
-
-      - name: Upload MSI
-        uses: actions/upload-artifact@v4
-        with:
-          name: TEFManager.msi
-          path: composeApp/build/compose/binaries/main-release/msi/*.msi
-          retention-days: 90
-
-  build-desktop-macos:
-    name: Build macOS DMG
-    runs-on: macos-latest
-    timeout-minutes: 60
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: wrapper
-          cache-read-only: false
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build macOS DMG
-        run: |
-          ./gradlew :composeApp:packageReleaseDmg \
-            --no-daemon
-
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: TEFManager.dmg
-          path: composeApp/build/compose/binaries/main-release/dmg/*.dmg
-          retention-days: 90
-
-  build-jar:
-    name: Build Cross-Platform JAR
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: wrapper
-          cache-read-only: false
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build Uber JAR
-        run: |
-          ./gradlew :composeApp:packageReleaseUberJarForCurrentOS \
-            --no-daemon
-
-      - name: Upload JAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: TEFManager.jar
-          path: composeApp/build/compose/jars/*.jar
-          retention-days: 90
-
-  summary:
-    name: Build Summary
-    needs: [build-android, build-desktop-windows, build-desktop-macos, build-jar]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Generate build summary
-        run: |
-          echo "# 🎉 Build Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | File | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|------|--------|" >> $GITHUB_STEP_SUMMARY
-          
-          [ "${{ needs.build-android.result }}" == "success" ] && STATUS="✅" || STATUS="❌"
-          echo "| Android | TEFManager.apk | $STATUS |" >> $GITHUB_STEP_SUMMARY
-          
-          [ "${{ needs.build-desktop-windows.result }}" == "success" ] && STATUS="✅" || STATUS="❌"
-          echo "| Windows | TEFManager.msi | $STATUS |" >> $GITHUB_STEP_SUMMARY
-          
-          [ "${{ needs.build-desktop-macos.result }}" == "success" ] && STATUS="✅" || STATUS="❌"
-          echo "| macOS | TEFManager.dmg | $STATUS |" >> $GITHUB_STEP_SUMMARY
-          
-          [ "${{ needs.build-jar.result }}" == "success" ] && STATUS="✅" || STATUS="❌"
-          echo "| JAR (Cross-Platform) | TEFManager.jar | $STATUS |" >> $GITHUB_STEP_SUMMARY
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📝 Info" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Description:** ${{ github.event.inputs.build_description }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Time:** $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "## Android build complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Description: ${{ github.event.inputs.build_description }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Signature: optional release keystore when configured, otherwise generated debug keystore" >> "$GITHUB_STEP_SUMMARY"
