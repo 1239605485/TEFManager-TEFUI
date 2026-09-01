@@ -143,6 +143,14 @@ abstract class BaseManager<T>(
             // 刷新内存列表
             refreshPacksList()
 
+            // Kernel 只会加载 enables.txt 中列出的插件。插件安装成功后默认启用，
+            // 否则虽然能在 Manager 列表中看到插件，TEFKernel 仍会报告 Plugins: 0 loaded。
+            if (config.type == AddonConfig.AddonType.Plugin) {
+                if (!enable(pkgId)) {
+                    logger.w("[$typeName] Installed but failed to enable: $pkgId")
+                }
+            }
+
             logger.i("[$typeName] $pkgId installed successfully")
         }
     }
